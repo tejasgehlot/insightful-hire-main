@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    ports:
+      - "27017:27017"
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+
+  ml-service:
+    build: ./ml-service
+    ports:
+      - "8000:8000"
+    networks:
+      - app-network
+    depends_on:
+      - redis
+
+  backend:
+    build: ./backend
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - MONGO_URI=mongodb://mongodb:27017/ai_assessment
+      - JWT_SECRET=change_this_secret
+      - ML_SERVICE_URL=http://ml-service:8000/ml
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - app-network
+    depends_on:
+      - mongodb
+      - redis
+      - ml-service
+
+  worker:
+    build: ./backend
+    command: ["node", "src/workers/worker.js"]
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/ai_assessment
+      - ML_SERVICE_URL=http://ml-service:8000/ml
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - app-network
+    depends_on:
+      - mongodb
+      - redis
+      - ml-service
+      - backend
+
+networks:
+  app-network:
+    driver: bridge
